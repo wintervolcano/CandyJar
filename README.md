@@ -137,7 +137,20 @@ Once the classification is done, you can press the "Save classification" button 
 
 ## Comparing cross-matched candidates side by side
 
-If you have cross-matched the candidates of two searches (e.g. with `csv_matcher_v2`), CandyJar can show each matched pair side by side. The match CSV needs one row per pair with `png_a` and `png_b` columns; any other column ending in `_a`/`_b` (e.g. `period`, `dm`, `acc`) is shown in an A-vs-B table, and the remaining columns (`match_group`, `match_type`, `harmonic_k`, ...) are shown as match information.
+If you have cross-matched the candidates of two searches, CandyJar can show each matched pair side by side. The match CSV needs one row per pair with `png_a` and `png_b` columns; any other column ending in `_a`/`_b` (e.g. `period`, `dm`, `acc`, `snr`, `pics_*`) is shown in an A-vs-B table, and the remaining columns (`match_group`, `match_type`, `harmonic_k`, ...) are shown as match information.
+
+**1. Make the match CSV** with `csv_matcher_v2` from [rusty_candypicker](https://github.com/wintervolcano/rusty_candypicker), giving it the candidate CSVs of the two searches:
+
+```shell
+git clone https://github.com/wintervolcano/rusty_candypicker.git
+cd rusty_candypicker
+cargo build --release --bin csv_matcher_v2
+./target/release/csv_matcher_v2 -i /path/to/search_A/candidates.csv /path/to/search_B/candidates.csv --ptol-frac 1e-4 --dmtol 1 --pairs-out matches.csv
+```
+
+`--ptol-frac` is the fractional period tolerance and `--dmtol` the absolute DM tolerance; add `--harmonics` to also match harmonics. The pairs table (`matches.csv`) includes S/N (`snr_a`/`snr_b`) and every PICS score, and `--extra-cols` copies any other candidate columns. See the rusty_candypicker README for all options.
+
+**2. Open it in the match viewer:**
 
 ```shell
 ./gradlew run --args="-m matches.csv -ma /path/to/search_A -mb /path/to/search_B"
