@@ -135,8 +135,18 @@ Once you select the UTC, the corresponding beam map will be drawn below along wi
 
 Once the classification is done, you can press the "Save classification" button to write out your classification to a CSV file. The application also automatically saves your classification every two minutes in the root candidate directory. In the event where the application crashes, you can resume from where you left off by loading this classification back when the application is restarted.  This file will need to me manually removed after the classification is over. 
 
+## Comparing cross-matched candidates side by side
 
+If you have cross-matched the candidates of two searches (e.g. with `csv_matcher_v2`), CandyJar can show each matched pair side by side. The match CSV needs one row per pair with `png_a` and `png_b` columns; any other column ending in `_a`/`_b` (e.g. `period`, `dm`, `acc`) is shown in an A-vs-B table, and the remaining columns (`match_group`, `match_type`, `harmonic_k`, ...) are shown as match information.
 
+```shell
+./gradlew run --args="-m matches.csv -ma /path/to/search_A -mb /path/to/search_B"
+```
 
+`-ma`/`-mb` are the directories that the relative `png_a`/`png_b` paths are resolved against (default: the directory of the match CSV). The match viewer only opens when `-m` is given; without it CandyJar starts as usual.
 
+Keys: `a`/`d` previous/next pair, `y u i o p l r` classify the pair (same categories as the main viewer), `space` opens both plots in your default PNG viewer. "Pair n/N" is the position of the current line in the match CSV (after filters), `match_group` is the group number written by the matcher, and `row_a`/`row_b` are the candidates' rows in their original candidate files. Zoom and pan are linked between the two plots unless `Link zoom` is unticked.
 
+`Sort by` (ascending or descending) lists every numeric column in the match CSV, plus `freq_a`/`freq_b` (1/period), `dm_diff` (DM of B minus DM of A) and `abs_dm_diff`. To sort by SNR, write it to the match CSV as a pair of columns such as `snr_a`/`snr_b`; any `<name>_a`/`<name>_b` pair is picked up and also shown in the A-vs-B table. The DM difference is shown for every pair.
+
+Every classification is autosaved to `<match csv>_classified.csv` next to the match CSV, as a copy of the match CSV with an extra `classification` column. Loading that file again resumes where you left off; tick `Unclassified only` to skip pairs you have already done.

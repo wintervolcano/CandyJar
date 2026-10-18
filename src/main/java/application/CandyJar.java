@@ -150,6 +150,9 @@ public class CandyJar extends Application implements Constants {
 
 	public static String csvFile = Constants.CSV_FILE_NAME;
 	public static String rootDir = null;
+	public static String matchCsv = null;
+	public static String matchDirA = null;
+	public static String matchDirB = null;
 
 	Psrcat psrcat = new Psrcat();
 
@@ -353,6 +356,11 @@ public class CandyJar extends Application implements Constants {
 	@Override
 	public void start(Stage stage) throws Exception {
 		this.myStage = stage;
+
+		if (matchCsv != null) {
+			new MatchViewer(stage, getHostServices(), matchCsv, matchDirA, matchDirB).show();
+			return;
+		}
 
 		configureLayout();
 		initialise();
@@ -1761,6 +1769,9 @@ public class CandyJar extends Application implements Constants {
 		Option scaleTol = new Option("stol", "scale_tolerance", false, "Scale tolerance with harmonics for pulsar matching. Default: " + CandyJar.scaleTolerance);
 		Option incFractions = new Option("fh", "include_fractional_harmonics", false, "Include fractions in the period for pulsar matching. Default: " + CandyJar.includeFractions);
 		Option dmTol = new Option("dmtol", "dm_tolerance", true, "DM tolerance for pulsar matching. Default: " + CandyJar.dmTolerance);
+		Option matchCsvOption = new Option("m", "match_csv", true, "Open the side-by-side match viewer on this match CSV (e.g. from csv_matcher_v2) instead of the normal viewer");
+		Option matchDirAOption = new Option("ma", "match_dir_a", true, "Base directory that png_a paths in the match CSV are relative to. Default: directory of the match CSV");
+		Option matchDirBOption = new Option("mb", "match_dir_b", true, "Base directory that png_b paths in the match CSV are relative to. Default: directory of the match CSV");
 
 		//compareMeta.setArgs(2);
 		//compareMeta.setValueSeparator(',');
@@ -1782,6 +1793,9 @@ public class CandyJar extends Application implements Constants {
 		options.addOption(compareMeta);
 		options.addOption(rootDir);
 		options.addOption(csvFile);
+		options.addOption(matchCsvOption);
+		options.addOption(matchDirAOption);
+		options.addOption(matchDirBOption);
 
 
 		try{
@@ -1926,6 +1940,10 @@ public class CandyJar extends Application implements Constants {
 			if(hasOption(incFractions)) {
 				CandyJar.includeFractions = true;
 			}
+
+			if(hasOption(matchCsvOption)) CandyJar.matchCsv = getValue(matchCsvOption);
+			if(hasOption(matchDirAOption)) CandyJar.matchDirA = getValue(matchDirAOption);
+			if(hasOption(matchDirBOption)) CandyJar.matchDirB = getValue(matchDirBOption);
 			
 			
 		}catch(Exception e){
