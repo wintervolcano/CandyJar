@@ -147,6 +147,6 @@ If you have cross-matched the candidates of two searches (e.g. with `csv_matcher
 
 Keys: `a`/`d` previous/next pair, `y u i o p l r` classify the pair (same categories as the main viewer), `space` opens both plots in your default PNG viewer. "Pair n/N" is the position of the current line in the match CSV (after filters), `match_group` is the group number written by the matcher, and `row_a`/`row_b` are the candidates' rows in their original candidate files. Zoom and pan are linked between the two plots unless `Link zoom` is unticked.
 
-`Sort by` (ascending or descending) lists every numeric column in the match CSV, plus `freq_a`/`freq_b` (1/period), `dm_diff` (DM of B minus DM of A) and `abs_dm_diff`. To sort by SNR, write it to the match CSV as a pair of columns such as `snr_a`/`snr_b`; any `<name>_a`/`<name>_b` pair is picked up and also shown in the A-vs-B table. The DM difference is shown for every pair.
+`Sort by` (ascending or descending) lists every numeric column in the match CSV, plus `freq` (1/period of candidate A), `dm_diff` (DM of B minus DM of A) and `abs_dm_diff`. To sort by SNR, write it to the match CSV as a pair of columns such as `snr_a`/`snr_b`; any `<name>_a`/`<name>_b` pair is picked up and also shown in the A-vs-B table. The DM difference is shown for every pair.
 
 Every classification is autosaved to `<match csv>_classified.csv` next to the match CSV, as a copy of the match CSV with an extra `classification` column. Loading that file again resumes where you left off; tick `Unclassified only` to skip pairs you have already done.

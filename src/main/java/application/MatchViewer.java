@@ -66,6 +66,8 @@ public class MatchViewer {
 	static final int PREFETCH = 3;
 	static final String CSV_ORDER = "CSV order";
 	static final String DM_DIFF = "dm_diff";
+	/* a matched pair shares (almost) the same spin frequency, so one sort option, taken from candidate A, is enough */
+	static final String FREQ = "freq";
 	static final String ABS_DM_DIFF = "abs_dm_diff";
 
 	private final Stage stage;
@@ -228,7 +230,7 @@ public class MatchViewer {
 		for (String column : sidedColumns) {
 			if (column.equals("row") || !isNumericColumn(column + "_a")) continue;
 			sortBox.getItems().addAll(column + "_a", column + "_b");
-			if (column.equals("period")) sortBox.getItems().addAll("freq_a", "freq_b");
+			if (column.equals("period")) sortBox.getItems().add(FREQ);
 		}
 		sortBox.getItems().addAll(DM_DIFF, ABS_DM_DIFF);
 		for (String column : matchColumns) if (!column.equals(GROUP_COLUMN) && isNumericColumn(column)) sortBox.getItems().add(column);
@@ -254,6 +256,7 @@ public class MatchViewer {
 				Double period = parse(row.get("period_" + side));
 				if (period != null && period != 0) row.put("freq_" + side, Double.toString(1.0 / period));
 			}
+			if (row.containsKey("freq_a")) row.put(FREQ, row.get("freq_a"));
 			Double dmA = parse(row.get("dm_a")), dmB = parse(row.get("dm_b"));
 			if (dmA != null && dmB != null) {
 				row.put(DM_DIFF, Double.toString(dmB - dmA));
@@ -538,7 +541,10 @@ public class MatchViewer {
 			writeToFile(autosaveFile());
 		} catch (IOException e) {
 			message.setText("Autosave failed: " + e.getMessage());
+			return;
 		}
+		/* like the main viewer: tagging moves on to the next pair, resetting to Uncat stays */
+		if (type != CANDIDATE_TYPE.UNCAT) move(1);
 	}
 
 	void move(int step) {
@@ -731,7 +737,7 @@ public class MatchViewer {
 		HBox navigation = new HBox(10, previousPair, counterLabel, nextPair,
 				new Label("Go to match_group:"), gotoGroupField, gotoGroup, linkZoom, new Label("Space: open both PNGs"));
 		navigation.setAlignment(Pos.CENTER_LEFT);
-		sortBox.setTooltip(new Tooltip("_a / _b: value of candidate A / B. freq = 1/period. Any other numeric column in the CSV is listed too."));
+		sortBox.setTooltip(new Tooltip("_a / _b: value of candidate A / B. freq = 1/period of candidate A. Any other numeric column in the CSV is listed too."));
 		HBox sorting = new HBox(10, new Label("Sort by:"), sortBox, sortOrder, new Label("Show:"), typeFilter, unclassifiedOnly);
 		sorting.setAlignment(Pos.CENTER_LEFT);
 
