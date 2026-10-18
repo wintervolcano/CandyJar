@@ -62,6 +62,11 @@ public class MatchViewer {
 	static final String GROUP_COLUMN = "match_group";
 	static final String TYPE_COLUMN = "match_type";
 	static final String ALL_TYPES = "ALL match types";
+	static final String SHOW_ALL = "All pairs";
+	static final String SHOW_UNCLASSIFIED = "Unclassified";
+	static final String SHOW_CLASSIFIED = "Classified";
+	/* pairs are identified by their two candidates, so tags survive re-running the matcher or renaming plot directories */
+	static final List<String> PAIR_KEY_COLUMNS = Arrays.asList("file_a", "row_a", "file_b", "row_b");
 	static final int IMAGE_CACHE_SIZE = 40;
 	static final int PREFETCH = 3;
 	static final String CSV_ORDER = "CSV order";
@@ -113,7 +118,7 @@ public class MatchViewer {
 	final ToggleButton ascending = new ToggleButton("Asc");
 	final ToggleButton descending = new ToggleButton("Desc");
 	final SegmentedButton sortOrder = new SegmentedButton(ascending, descending);
-	final CheckBox unclassifiedOnly = new CheckBox("Unclassified only");
+	final ComboBox<String> classFilter = new ComboBox<>();
 	final CheckBox linkZoom = new CheckBox("Link zoom");
 
 	/* centre: the two plots */
@@ -142,6 +147,7 @@ public class MatchViewer {
 	final SegmentedButton categories = new SegmentedButton(FXCollections.observableArrayList(
 			Arrays.asList(new ToggleButton[] { rfi, noise, tier1, tier2, knownPulsar, nbPulsar, reset })));
 	final Button save = new Button("Save classification");
+	final Button loadClassification = new Button("Load classification");
 	final Label message = new Label("Load a match CSV to start.");
 
 	public MatchViewer(Stage stage, HostServices hostServices, String matchCsv, String dirA, String dirB) {
@@ -286,8 +292,7 @@ public class MatchViewer {
 		for (int i = 0; i < rows.size(); i++) {
 			Map<String, String> row = rows.get(i);
 			if (type != null && !type.equals(ALL_TYPES) && !type.equals(row.get(TYPE_COLUMN))) continue;
-			if (unclassifiedOnly.isSelected() && !CANDIDATE_TYPE.UNCAT.name().equals(row.get(CLASSIFICATION_COLUMN))
-					&& !(currentRow != null && currentRow == i)) continue;
+			if (!showClassification(row.get(CLASSIFICATION_COLUMN))) continue;
 			visibleRows.add(i);
 		}
 
@@ -303,7 +308,76 @@ public class MatchViewer {
 		}
 
 		cursor = currentRow == null ? 0 : Math.max(0, visibleRows.indexOf(currentRow));
+		message.setText("");
 		showCurrent();
+	}
+
+	boolean showClassification(String classification) {
+		String show = classFilter.getValue();
+		boolean unclassified = CANDIDATE_TYPE.UNCAT.name().equals(classification);
+		if (show == null || show.equals(SHOW_ALL)) return true;
+		if (show.equals(SHOW_UNCLASSIFIED)) return unclassified;
+		if (show.equals(SHOW_CLASSIFIED)) return !unclassified;
+		return show.equals(classification);
+	}
+
+	/** Copy tags from a saved classification CSV onto the matching pairs; returns a summary for the message bar. */
+	String loadClassificationFrom(File file) throws IOException {
+		List<String> fileHeader = null;
+		Map<String, String> loaded = new LinkedHashMap<>();
+		try (BufferedReader reader = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
+			String line;
+			while ((line = reader.readLine()) != null) {
+				if (line.isBlank() || line.startsWith("#")) continue;
+				List<String> values = splitCsvLine(line);
+				if (fileHeader == null) {
+					fileHeader = new ArrayList<>();
+					for (String v : values) fileHeader.add(v.trim());
+					if (!fileHeader.contains(CLASSIFICATION_COLUMN))
+						throw new IOException(file.getName() + " has no " + CLASSIFICATION_COLUMN + " column.");
+					continue;
+				}
+				Map<String, String> row = new LinkedHashMap<>();
+				for (int i = 0; i < fileHeader.size() && i < values.size(); i++) row.put(fileHeader.get(i), values.get(i).trim());
+				String value = row.getOrDefault(CLASSIFICATION_COLUMN, "");
+				/* only real tags are carried over, so loading an older file never wipes tags made since */
+				if (isCategory(value) && !value.equals(CANDIDATE_TYPE.UNCAT.name())) loaded.put(pairKey(row), value);
+			}
+		}
+
+		Map<String, Integer> counts = new LinkedHashMap<>();
+		int applied = 0;
+		for (Map<String, String> row : rows) {
+			String value = loaded.remove(pairKey(row));
+			if (value == null) continue;
+			row.put(CLASSIFICATION_COLUMN, value);
+			counts.merge(value, 1, Integer::sum);
+			applied++;
+		}
+		if (applied > 0) writeToFile(autosaveFile());
+
+		StringBuilder summary = new StringBuilder("Loaded " + applied + " classifications from " + file.getName());
+		if (!counts.isEmpty()) summary.append(" (").append(counts.toString().replaceAll("[{}]", "").replace("=", ": ")).append(")");
+		if (!loaded.isEmpty()) summary.append("; ").append(loaded.size()).append(" tagged pairs are not in this match CSV");
+		return summary.toString();
+	}
+
+	static String pairKey(Map<String, String> row) {
+		List<String> parts = new ArrayList<>();
+		if (PAIR_KEY_COLUMNS.stream().allMatch(row::containsKey))
+			for (String column : PAIR_KEY_COLUMNS) parts.add(row.get(column));
+		else
+			for (String column : Arrays.asList("png_a", "png_b")) parts.add(row.getOrDefault(column, ""));
+		return String.join("|", parts);
+	}
+
+	static boolean isCategory(String value) {
+		try {
+			CANDIDATE_TYPE.valueOf(value);
+			return true;
+		} catch (IllegalArgumentException e) {
+			return false;
+		}
 	}
 
 	/** A new sort order starts from the top of the list, not from wherever the current pair ended up. */
@@ -653,7 +727,10 @@ public class MatchViewer {
 		gotoGroup.setOnAction(e -> goToGroup(gotoGroupField.getText().trim()));
 		gotoGroupField.setOnAction(e -> gotoGroup.fire());
 		typeFilter.setOnAction(e -> { if (!rows.isEmpty()) applyFilter(); });
-		unclassifiedOnly.setOnAction(e -> { if (!rows.isEmpty()) applyFilter(); });
+		classFilter.getItems().addAll(SHOW_ALL, SHOW_UNCLASSIFIED, SHOW_CLASSIFIED);
+		for (CANDIDATE_TYPE type : CANDIDATE_TYPE.values()) if (type != CANDIDATE_TYPE.UNCAT) classFilter.getItems().add(type.name());
+		classFilter.getSelectionModel().select(SHOW_ALL);
+		classFilter.setOnAction(e -> { if (!rows.isEmpty()) applyFilter(); });
 		sortBox.getItems().add(CSV_ORDER);
 		sortBox.getSelectionModel().select(CSV_ORDER);
 		descending.setSelected(true);
@@ -671,6 +748,25 @@ public class MatchViewer {
 		knownPulsar.setOnAction(e -> classify(CANDIDATE_TYPE.KNOWN_PSR));
 		nbPulsar.setOnAction(e -> classify(CANDIDATE_TYPE.NB_PSR));
 		reset.setOnAction(e -> classify(CANDIDATE_TYPE.UNCAT));
+
+		loadClassification.setOnAction(e -> {
+			if (matchFile == null) {
+				message.setText("Load a match CSV first.");
+				return;
+			}
+			FileChooser loadChooser = new FileChooser();
+			loadChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV files", "*.csv"));
+			loadChooser.setInitialDirectory(matchFile.getAbsoluteFile().getParentFile());
+			File file = loadChooser.showOpenDialog(stage);
+			if (file == null) return;
+			try {
+				String summary = loadClassificationFrom(file);
+				applyFilter();
+				message.setText(summary);
+			} catch (IOException ex) {
+				message.setText("Could not load classification: " + ex.getMessage());
+			}
+		});
 
 		save.setOnAction(e -> {
 			if (matchFile == null) return;
@@ -738,7 +834,7 @@ public class MatchViewer {
 				new Label("Go to match_group:"), gotoGroupField, gotoGroup, linkZoom, new Label("Space: open both PNGs"));
 		navigation.setAlignment(Pos.CENTER_LEFT);
 		sortBox.setTooltip(new Tooltip("_a / _b: value of candidate A / B. freq = 1/period of candidate A. Any other numeric column in the CSV is listed too."));
-		HBox sorting = new HBox(10, new Label("Sort by:"), sortBox, sortOrder, new Label("Show:"), typeFilter, unclassifiedOnly);
+		HBox sorting = new HBox(10, new Label("Sort by:"), sortBox, sortOrder, new Label("Show:"), classFilter, typeFilter);
 		sorting.setAlignment(Pos.CENTER_LEFT);
 
 		HBox plots = new HBox(10, buildPlotPane(titleA, gestureA, imageViewA, missingA),
@@ -755,7 +851,7 @@ public class MatchViewer {
 		categories.getStyleClass().add(SegmentedButton.STYLE_CLASS_DARK);
 
 		VBox bottom = new VBox(8, matchInfo, detailsGrid,
-				new HBox(10, new Label("Select Category:"), categories, save), message);
+				new HBox(10, new Label("Select Category:"), categories, save, loadClassification), message);
 
 		BorderPane pane = new BorderPane();
 		pane.setTop(new VBox(10, inputs, navigation, sorting));
