@@ -1,5 +1,10 @@
 package readers;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.Arrays;
+import java.util.List;
 import java.awt.geom.Point2D;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -22,12 +27,31 @@ import data_holders.Beam;
 import data_holders.EllipseConfig;
 import data_holders.MetaFile;
 import jsky.coords.WCSTransform;
-import utilitites.Utilities;
 
 
 
 public class ApsuseMetaReader {
 	
+	/* APSUSE writes 2026/05/02 22:48:03; other pipelines write ISO or day-first (02/05/2026 22:48:03) */
+	private static final List<DateTimeFormatter> META_UTC_FORMATS = Arrays.asList(
+			DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss[.SSSSSS][.SSS]"),
+			DateTimeFormatter.ISO_DATE_TIME,
+			DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss[.SSSSSS][.SSS]"),
+			DateTimeFormatter.ofPattern("dd-MM-yyyy'T'HH:mm:ss[.SSSSSS][.SSS]"));
+
+	/** The metafile's utc_start is only informational (candidates carry their own UTC), so an unknown format is not fatal. */
+	static LocalDateTime parseMetaUtc(String text, String fileName) {
+		for (DateTimeFormatter format : META_UTC_FORMATS) {
+			try {
+				return LocalDateTime.parse(text.trim(), format);
+			} catch (DateTimeParseException e) {
+				/* try the next format */
+			}
+		}
+		System.err.println("[WARN] " + fileName + ": cannot read utc_start '" + text + "'; ignoring it");
+		return null;
+	}
+
 	public static MetaFile parseFile(String fileName) throws FileNotFoundException {
 		
 		MetaFile metaFile = new MetaFile();
@@ -51,7 +75,7 @@ public class ApsuseMetaReader {
 			metaFile.setCentreFreq(jsonObject.getJsonNumber("centre_frequency").doubleValue());
 			
 			
-			metaFile.setUtc(Utilities.getUTCLocalDateTime(jsonObject.getJsonString("utc_start").getString()));
+			metaFile.setUtc(parseMetaUtc(jsonObject.getJsonString("utc_start").getString(), fileName));
 			metaFile.setProjectName(jsonObject.getJsonString("project_name").getString());
 			metaFile.setScheduleBlockId(jsonObject.getJsonString("sb_id").getString());
 			metaFile.setOutputDir(jsonObject.getJsonString("output_dir").getString());

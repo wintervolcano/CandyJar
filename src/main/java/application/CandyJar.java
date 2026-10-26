@@ -465,7 +465,7 @@ public class CandyJar extends Application implements Constants {
 					e.printStackTrace();
 					utcBox.setVisible(false);
 					loadClassification.setVisible(false);
-				} catch (InvalidInputException e) {
+				} catch (InvalidInputException | IllegalArgumentException e) {
 					message.setText(e.getMessage());
 					e.printStackTrace();
 					utcBox.setVisible(false);

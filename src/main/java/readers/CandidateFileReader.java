@@ -4,10 +4,14 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -27,6 +31,39 @@ public class CandidateFileReader implements CandidateFileConstants {
 	private static 	Map<String, MetaFile> metafiles = new HashMap<String, MetaFile>();
 
 	
+	private static final LocalDateTime MJD_ZERO = LocalDateTime.of(1858, 11, 17, 0, 0);
+	/* day-first timestamps, e.g. 02-05-2026T22:48:03, only used when there is no mjd_start to go by */
+	private static final DateTimeFormatter DAY_FIRST = DateTimeFormatter.ofPattern("dd-MM-yyyy'T'HH:mm:ss[.SSSSSS][.SSS]");
+	private static final Set<String> warnedFiles = new HashSet<String>();
+
+	/**
+	 * utc_start as written by the pipeline is ISO (2026-05-02T22:48:03). Other formats are ambiguous
+	 * (02-05-2026 is 2 May or 5 February), so the start time is then taken from mjd_start, and only
+	 * read as day-first when there is no MJD.
+	 */
+	static LocalDateTime parseUtcStart(String text, Double mjd, String fileName) {
+		try {
+			return LocalDateTime.parse(text, DateTimeFormatter.ISO_DATE_TIME);
+		} catch (DateTimeParseException notIso) {
+			if (mjd != null) {
+				warnOnce(fileName, "utc_start '" + text + "' is not ISO (yyyy-MM-ddTHH:mm:ss); using mjd_start instead");
+				return MJD_ZERO.plus(Math.round(mjd * 86400.0), ChronoUnit.SECONDS);
+			}
+			try {
+				LocalDateTime utc = LocalDateTime.parse(text, DAY_FIRST);
+				warnOnce(fileName, "utc_start '" + text + "' is not ISO and there is no mjd_start; reading it as day-month-year: " + utc);
+				return utc;
+			} catch (DateTimeParseException notDayFirst) {
+				throw new IllegalArgumentException("Cannot read utc_start '" + text + "' in " + fileName
+						+ ": expected yyyy-MM-ddTHH:mm:ss, or add an mjd_start column");
+			}
+		}
+	}
+
+	private static void warnOnce(String fileName, String warning) {
+		if (warnedFiles.add(fileName + warning.substring(0, 12))) System.err.println("[WARN] " + fileName + ": " + warning);
+	}
+
 	public static List<Candidate> readCandidateFile(String candidateFileName, File baseDir) throws IOException, InvalidInputException {
 		
 		try {
@@ -71,7 +108,7 @@ public class CandidateFileReader implements CandidateFileConstants {
 				if(headerPositions.containsKey(mjd_start)) c.setStartMJD(Double.parseDouble(chunks[headerPositions.get(mjd_start)]));
 				
 				if(headerPositions.containsKey(utc_start)) {
-					c.setStartUTC(Utilities.getUTCLocalDateTime(chunks[headerPositions.get(utc_start)], DateTimeFormatter.ISO_DATE_TIME));
+					c.setStartUTC(parseUtcStart(chunks[headerPositions.get(utc_start)].trim(), c.getStartMJD(), candidateFileName));
 					c.setUtcString(Utilities.getUTCString(c.getStartUTC(), DateTimeFormatter.ISO_DATE_TIME));
 				}
 				
