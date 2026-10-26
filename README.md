@@ -76,6 +76,10 @@ The `Diagnostics` tab copies ready-made `prepfold`, `pulsarx` and `dspsr` comman
 
 The match viewer shows pairs of candidates from two searches (for example two observations of the same cluster) side by side, with the numbers that decide whether they are the same pulsar.
 
+![The match viewer comparing a 4.52 ms candidate in two MeerKAT observations of M79, ten months apart](docs/match_viewer.webp)
+
+*The same 4.52 ms candidate in two MeerKAT observations of M79 taken ten months apart. The topocentric periods differ by 0.000235 ms, but the demodulated (barycentric) periods agree to 0.000004 ms (ΔV = −0.24 km/s), at the same position and DM.*
+
 ### Quick start
 
 Give `-m` the candidate files of the two searches:
