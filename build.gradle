@@ -114,8 +114,46 @@ dependencies {
 
 }
 
+// csv_matcher_v2 from the rusty_candypicker submodule does the matching behind "-m a.csv b.csv".
+// It is built with cargo along with CandyJar; -PmatcherDir=<dir> uses another rusty_candypicker checkout.
+def matcherDir = file(project.findProperty('matcherDir') ?: 'rusty_candypicker')
+def matcherBinary = new File(matcherDir, 'target/release/csv_matcher_v2')
+
+task buildMatcher {
+    description = 'Builds csv_matcher_v2 (needs cargo). CandyJar still builds and runs without it, just without automatic matching.'
+    doLast {
+        if (!new File(matcherDir, 'Cargo.toml').exists()) {
+            // cloned without --recursive: fetch the submodule first
+            project.exec {
+                commandLine 'git', 'submodule', 'update', '--init', 'rusty_candypicker'
+                ignoreExitValue = true
+            }
+        }
+        if (!new File(matcherDir, 'Cargo.toml').exists()) {
+            logger.warn("WARNING: no rusty_candypicker sources in ${matcherDir}; automatic matching (-m a.csv b.csv) is not available.")
+            return
+        }
+        // the gradle daemon may not have ~/.cargo/bin on its PATH
+        def homeCargo = new File(System.getProperty('user.home'), '.cargo/bin/cargo')
+        def cargo = homeCargo.exists() ? homeCargo.absolutePath : 'cargo'
+        try {
+            def result = project.exec {
+                workingDir matcherDir
+                commandLine cargo, 'build', '--release', '--bin', 'csv_matcher_v2'
+                ignoreExitValue = true
+            }
+            if (result.exitValue != 0) logger.warn("WARNING: building csv_matcher_v2 failed; automatic matching (-m a.csv b.csv) is not available.")
+        } catch (Exception e) {
+            logger.warn("WARNING: cargo not found (install Rust from https://rustup.rs); automatic matching (-m a.csv b.csv) is not available.")
+        }
+    }
+}
+run.dependsOn buildMatcher
+build.dependsOn buildMatcher
+
 application {
     applicationDefaultJvmArgs =  [
+            "-Dcandyjar.matcher=${matcherBinary.absolutePath}",
             "--add-opens=javafx.base/com.sun.javafx.runtime=org.controlsfx.controls",
             "--add-opens=javafx.base/com.sun.javafx.collections=org.controlsfx.controls",
             "--add-opens=javafx.graphics/com.sun.javafx.css=org.controlsfx.controls",

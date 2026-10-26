@@ -151,6 +151,10 @@ public class CandyJar extends Application implements Constants {
 	public static String csvFile = Constants.CSV_FILE_NAME;
 	public static String rootDir = null;
 	public static String matchCsv = null;
+	/* -m a.csv b.csv: candidate CSVs to match with csv_matcher_v2 before opening the match viewer */
+	public static List<String> matchInputs = null;
+	public static List<String> matcherArgs = null;
+	public static String matcherPath = null;
 	public static String matchDirA = null;
 	public static String matchDirB = null;
 
@@ -357,8 +361,10 @@ public class CandyJar extends Application implements Constants {
 	public void start(Stage stage) throws Exception {
 		this.myStage = stage;
 
-		if (matchCsv != null) {
-			new MatchViewer(stage, getHostServices(), matchCsv, matchDirA, matchDirB).show();
+		if (matchCsv != null || matchInputs != null) {
+			MatchViewer viewer = new MatchViewer(stage, getHostServices(), matchCsv, matchDirA, matchDirB);
+			if (matchInputs != null) viewer.matchCandidateFiles(matchInputs, matcherArgs, matcherPath);
+			viewer.show();
 			return;
 		}
 
@@ -1769,7 +1775,12 @@ public class CandyJar extends Application implements Constants {
 		Option scaleTol = new Option("stol", "scale_tolerance", false, "Scale tolerance with harmonics for pulsar matching. Default: " + CandyJar.scaleTolerance);
 		Option incFractions = new Option("fh", "include_fractional_harmonics", false, "Include fractions in the period for pulsar matching. Default: " + CandyJar.includeFractions);
 		Option dmTol = new Option("dmtol", "dm_tolerance", true, "DM tolerance for pulsar matching. Default: " + CandyJar.dmTolerance);
-		Option matchCsvOption = new Option("m", "match_csv", true, "Open the side-by-side match viewer on this match CSV (e.g. from csv_matcher_v2) instead of the normal viewer");
+		Option matchCsvOption = new Option("m", "match_csv", true, "Open the side-by-side match viewer instead of the normal viewer. One file: a match CSV from csv_matcher_v2. "
+				+ "Two or more files: candidate CSVs, which are matched with csv_matcher_v2 first");
+		matchCsvOption.setArgs(Option.UNLIMITED_VALUES);
+		Option matcherArgsOption = new Option("margs", "matcher_args", true, "Options for csv_matcher_v2 when matching with -m a.csv b.csv, in quotes, e.g. '--ptol-frac 1e-5 --dmtol 1 --bary --harmonics'. "
+				+ "Default: '" + String.join(" ", MatchViewer.DEFAULT_MATCHER_ARGS) + "'");
+		Option matcherOption = new Option("matcher", true, "Path of the csv_matcher_v2 binary. Default: the one built with CandyJar, else csv_matcher_v2 on the PATH");
 		Option matchDirAOption = new Option("ma", "match_dir_a", true, "Base directory that png_a paths in the match CSV are relative to. Default: directory of the match CSV");
 		Option matchDirBOption = new Option("mb", "match_dir_b", true, "Base directory that png_b paths in the match CSV are relative to. Default: directory of the match CSV");
 
@@ -1794,6 +1805,8 @@ public class CandyJar extends Application implements Constants {
 		options.addOption(rootDir);
 		options.addOption(csvFile);
 		options.addOption(matchCsvOption);
+		options.addOption(matcherArgsOption);
+		options.addOption(matcherOption);
 		options.addOption(matchDirAOption);
 		options.addOption(matchDirBOption);
 
@@ -1941,7 +1954,13 @@ public class CandyJar extends Application implements Constants {
 				CandyJar.includeFractions = true;
 			}
 
-			if(hasOption(matchCsvOption)) CandyJar.matchCsv = getValue(matchCsvOption);
+			if(hasOption(matchCsvOption)) {
+				String[] values = commandLine.getOptionValues(matchCsvOption.getOpt());
+				if (values.length == 1) CandyJar.matchCsv = values[0];
+				else CandyJar.matchInputs = Arrays.asList(values);
+			}
+			if(hasOption(matcherArgsOption)) CandyJar.matcherArgs = Arrays.asList(getValue(matcherArgsOption).trim().split("\\s+"));
+			if(hasOption(matcherOption)) CandyJar.matcherPath = getValue(matcherOption);
 			if(hasOption(matchDirAOption)) CandyJar.matchDirA = getValue(matchDirAOption);
 			if(hasOption(matchDirBOption)) CandyJar.matchDirB = getValue(matchDirBOption);
 			
