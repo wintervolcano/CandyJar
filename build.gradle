@@ -153,7 +153,8 @@ build.dependsOn buildMatcher
 
 application {
     applicationDefaultJvmArgs =  [
-            "-Dcandyjar.matcher=${matcherBinary.absolutePath}",
+            // a plain String: the start scripts cannot take a Groovy GString
+            "-Dcandyjar.matcher=${matcherBinary.absolutePath}".toString(),
             "--add-opens=javafx.base/com.sun.javafx.runtime=org.controlsfx.controls",
             "--add-opens=javafx.base/com.sun.javafx.collections=org.controlsfx.controls",
             "--add-opens=javafx.graphics/com.sun.javafx.css=org.controlsfx.controls",
