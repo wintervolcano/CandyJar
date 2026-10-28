@@ -105,7 +105,7 @@ The matcher's options default to `--ptol-frac 5e-4 --dmtol 2`. Give your own wit
 | `--bary` | match on barycentric periods: Earth's motion is removed, so the tolerance can be much tighter (about 1e-6 for an isolated pulsar) |
 | `--extra-cols a,b` | copy more candidate columns into the pairs |
 
-See [`rusty_candypicker/README.md`](rusty_candypicker/README.md) for every option and every column of the pairs file. A good starting point for two observations months apart is `--ptol-frac 5e-4 --dmtol 2 --harmonics --hmax 4`, or `--ptol-frac 1e-5 --dmtol 2 --bary` when the candidate files have positions and epochs.
+See the [rusty_candypicker README](https://github.com/wintervolcano/rusty_candypicker/blob/main/README.md#csv_matcher_v2-cross-match-candidates-between-searches) for every option and every column of the pairs file. A good starting point for two observations months apart is `--ptol-frac 5e-4 --dmtol 2 --harmonics --hmax 4`, or `--ptol-frac 1e-5 --dmtol 2 --bary` when the candidate files have positions and epochs.
 
 To open a pairs file made earlier, give `-m` that one file: `./gradlew run --args="-m matches.csv"`.
 
