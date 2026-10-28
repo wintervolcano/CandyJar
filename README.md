@@ -70,7 +70,7 @@ Known pulsars come from psrcat databases: the one in `$PSRCAT_DIR/psrcat.db` and
 
 The `Diagnostics` tab copies ready-made `prepfold`, `pulsarx` and `dspsr` commands for the current candidate to the clipboard.
 
-`Save classification` writes `<file>.csv` (beam, UTC, plot and tag per candidate) and `<file>_full.csv` (every original column plus `classification`). CandyJar also autosaves every two minutes to `<results dir name>_<user>_autosave.csv` in the results directory, so you can resume after a crash with `Load classification`; delete that file when you are done.
+`Save classification` writes `<file>.csv` (beam, UTC, plot and tag per candidate) and `<file>_full.csv` (every original column plus `classification`). CandyJar also autosaves to `<results dir name>_<user>_autosave.csv` in the results directory, every two minutes when tags have changed, so you can resume after a crash with `Load classification` (either the autosave or its `_full` file). When you open a directory whose autosave has tags, CandyJar says so. Before the first autosave of a session, the previous session's autosave is kept as `<results dir name>_<user>_autosave_previous.csv`. Delete these files when you are done.
 
 ## Comparing candidates across searches
 

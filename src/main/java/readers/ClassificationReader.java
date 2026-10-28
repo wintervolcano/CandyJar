@@ -28,48 +28,45 @@ public class ClassificationReader extends Task<String> {
         return returnStr;
     }
 
+    /**
+     * Reads a classification saved by CandyJar: the short file (beamid,utc,png,classification), the older
+     * three-column one, or the _full file with every candidate column. The tag is the last column in all of them.
+     */
     public String loadFromFile()  throws IOException{
 
-		try {
-			List<String> list = Files.readAllLines(this.loadFile.toPath());
-			List<String> classifiedList = list.stream().filter(f -> !f.contains("UNCAT")).collect(Collectors.toList());
-			if(list.isEmpty() || list.size() == 1) {
-				return "Loaded classification contains no classified candidates";
-			}
-			int length = classifiedList.get(1).split(",").length;
-			int candidate_type_idx = length == 3? 2: 3; // old format without beam id and new with beam id
-					
-
-			for (Candidate candidate : this.fullCandiatesList) {
-
-				List<String> lines  = classifiedList.stream().filter(f -> f.contains(candidate.getPngFilePath())).collect(Collectors.toList());
-
-				if(lines.isEmpty()) {
-					continue;
-				}
-				else if(lines.size() > 1) { 
-					System.err.println( lines.size() + " values for " + candidate.getPngFilePath());
-					System.err.println("Using the last value: " + lines.get(lines.size()-1));
-					candidate.setCandidateType(CANDIDATE_TYPE.valueOf(lines.get(lines.size()-1).split(",")[candidate_type_idx]));
-				}
-				else {
-					candidate.setCandidateType(CANDIDATE_TYPE.valueOf(lines.get(0).split(",")[candidate_type_idx]));	
-				}
-
-				classifiedList.removeAll(lines);
-
-			}
-            return "Classifications loaded successfully";
-
-		} catch (IOException e) {
-			e.printStackTrace();
-            throw e;
+		List<String> list = Files.readAllLines(this.loadFile.toPath());
+		/* skip the header; keep only real tags, so loading never resets a candidate to UNCAT */
+		List<String> classifiedList = list.stream().skip(1)
+				.filter(line -> !line.isBlank() && !tagOf(line).equals(CANDIDATE_TYPE.UNCAT.name()))
+				.collect(Collectors.toList());
+		if (classifiedList.isEmpty()) {
+			return loadFile.getName() + " has no classified candidates (every candidate is UNCAT)";
 		}
 
+		int loaded = 0;
+		for (Candidate candidate : this.fullCandiatesList) {
 
+			List<String> lines  = classifiedList.stream().filter(f -> f.contains(candidate.getPngFilePath())).collect(Collectors.toList());
 
+			if(lines.isEmpty()) {
+				continue;
+			}
+			if(lines.size() > 1) {
+				System.err.println( lines.size() + " values for " + candidate.getPngFilePath());
+				System.err.println("Using the last value: " + lines.get(lines.size()-1));
+			}
+			candidate.setCandidateType(CANDIDATE_TYPE.valueOf(tagOf(lines.get(lines.size()-1))));
+			loaded++;
+
+			classifiedList.removeAll(lines);
+
+		}
+		return "Loaded " + loaded + " classifications from " + loadFile.getName()
+				+ (classifiedList.isEmpty() ? "" : "; " + classifiedList.size() + " tagged lines matched no candidate");
 	}
 
-	
-	
+	static String tagOf(String line) {
+		return line.substring(line.lastIndexOf(',') + 1).trim();
+	}
+
 }

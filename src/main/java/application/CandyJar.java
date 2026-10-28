@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -353,6 +354,47 @@ public class CandyJar extends Application implements Constants {
 
 	}
 
+	/* the tags as they were last autosaved (or as loaded), and whether this session has kept the previous autosave yet */
+	private volatile String lastSavedTags = null;
+	private volatile boolean previousAutosaveKept = false;
+
+	File autosaveFile() {
+		return new File(rootDirTB.getTextField().getText(), baseDir.getName() + "_" + userName + "_autosave.csv");
+	}
+
+	/** Every candidate's tag in order, to tell whether anything changed since the last autosave. */
+	String classificationState() {
+		StringBuilder state = new StringBuilder();
+		for (Candidate candidate : new ArrayList<>(fullCandiatesList)) state.append(candidate.getCandidateType()).append(',');
+		return state.toString();
+	}
+
+	/** Before a session first autosaves, copy the previous session's autosave (and its _full file) to *_autosave_previous*. */
+	static void keepPreviousAutosave(File autosave) {
+		for (File file : new File[] { autosave, new File(autosave.getParentFile(), autosave.getName().replace(".csv", "_full.csv")) }) {
+			if (!file.exists()) continue;
+			File previous = new File(file.getParentFile(), file.getName().replace("_autosave", "_autosave_previous"));
+			try {
+				Files.copy(file.toPath(), previous.toPath(), StandardCopyOption.REPLACE_EXISTING);
+				System.err.println("Kept the previous autosave as " + previous.getName());
+			} catch (IOException e) {
+				System.err.println("Could not keep the previous autosave " + file.getName() + ": " + e.getMessage());
+			}
+		}
+	}
+
+	/** Number of tagged (not UNCAT) candidates in a saved classification file; the tag is its last column. */
+	static long countTags(File file) {
+		if (!file.exists()) return 0;
+		try {
+			return Files.readAllLines(file.toPath()).stream().skip(1)
+					.filter(line -> !line.isBlank() && !line.substring(line.lastIndexOf(',') + 1).trim().equals(CANDIDATE_TYPE.UNCAT.name()))
+					.count();
+		} catch (IOException e) {
+			return 0;
+		}
+	}
+
 	public Stage getStage() {
 		return myStage;
 	}
@@ -380,9 +422,19 @@ public class CandyJar extends Application implements Constants {
 				if(rootDirTB == null || rootDirTB.getTextField().getText().isBlank() || baseDir == null || userName == null || fullCandiatesList.isEmpty()) {
 					return;
 				}
-				System.err.println("Autosaving to " + baseDir.getName() + "_" + userName+"_autosave.csv");
+				/* only save when tags changed: right after loading a directory everything is UNCAT, and writing
+				   that would overwrite the previous session's autosave before it could be loaded */
+				String tags = classificationState();
+				if (tags.equals(lastSavedTags)) return;
 
-				writeToFile(new File(rootDirTB.getTextField().getText(), baseDir.getName() + "_" + userName+"_autosave.csv"));
+				File autosave = autosaveFile();
+				if (!previousAutosaveKept) {
+					keepPreviousAutosave(autosave);
+					previousAutosaveKept = true;
+				}
+				System.err.println("Autosaving to " + autosave.getName());
+				writeToFile(autosave);
+				lastSavedTags = tags;
 
 				
 			}
@@ -454,7 +506,12 @@ public class CandyJar extends Application implements Constants {
 					sortBox.getItems().clear();
 					System.err.println("Sortable parameters: " + Candidate.SORTABLE_PARAMETERS_MAP.keySet());
 					sortBox.getItems().addAll(FXCollections.observableArrayList(Candidate.SORTABLE_PARAMETERS_MAP.keySet()));
-					message.setText(utcs.size() + " utcs found");
+					/* nothing is autosaved until a tag changes; point to the previous session's tags if there are any */
+					lastSavedTags = classificationState();
+					previousAutosaveKept = false;
+					long savedTags = countTags(autosaveFile());
+					message.setText(utcs.size() + " utcs found" + (savedTags == 0 ? "" :
+							". Autosave has " + savedTags + " tags: press Load classification to continue."));
 					if(chartViewer != null && chartViewer.isShowing()) chartViewer.close();
 
 					chartViewer = secondaryScreenBounds!=null? new ChartViewer(secondaryScreenBounds, numCharts, candyJar): null;
@@ -896,11 +953,13 @@ public class CandyJar extends Application implements Constants {
 						message.setText("Loading classification...");
 					});
 					classificationReader.setOnSucceeded(e -> {
-						message.setText("Classification loaded successfully.");
-						consolidate(imageCounter);
+						message.setText(classificationReader.getValue());
+						if (candidatesVisible) consolidate(imageCounter);
 					});
 					classificationReader.setOnFailed(e -> {
-						message.setText("Failed to load classification.");
+						Throwable error = classificationReader.getException();
+						message.setText("Failed to load classification: " + error);
+						error.printStackTrace();
 					});
 					ExecutorService executor = Executors.newFixedThreadPool(1);
 					executor.execute(classificationReader);
@@ -1599,7 +1658,12 @@ public class CandyJar extends Application implements Constants {
 
 
 		VBox leftBottom = new VBox(10, message);
-		leftBottom.setPrefSize(leftWidth, leftBottomHeight);
+		leftBottom.setPrefWidth(leftWidth);
+		leftBottom.setMinHeight(leftBottomHeight);
+		/* long messages wrap onto more lines instead of being cut off */
+		message.setWrapText(true);
+		message.setMaxWidth(leftWidth - Constants.DEFAULT_INSETS.getLeft() - Constants.DEFAULT_INSETS.getRight());
+		message.setMinHeight(Label.USE_PREF_SIZE);
 		leftPane.setBottom(leftBottom);
 
 		double leftCentreHeight = pngPaneHeight - leftBottomHeight - leftTopHeight;
